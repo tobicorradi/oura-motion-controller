@@ -1,0 +1,4 @@
+.home .cards{grid-template-columns:repeat(5,1fr)}
+@media(max-width:1180px){.home .cards{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.home .cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.home .cards{grid-template-columns:1fr}}
