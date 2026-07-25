@@ -1,6 +1,6 @@
-# Beyond the Tap
+# Oura Motion Controller
 
-An internal React Roundtable experiment: motion input for web experiences. Demo Mode always works with mouse and keyboard. Live Oura Mode uses a **local** `open_oura` bridge; the browser never handles Bluetooth pairing or the ring authentication key.
+An internal React Roundtable experiment, presented as **Oura Motion Controller**: motion input for web experiences. Demo Mode always works with mouse and keyboard. Live Oura Mode uses a **local** `open_oura` bridge; the browser never handles Bluetooth pairing or the ring authentication key.
 
 ## Live-motion architecture
 
@@ -27,10 +27,10 @@ Use **Demo Mode** when the bridge or ring is unavailable. Mouse and keyboard rem
 
 1. Install Rust/Cargo, then grant Bluetooth access to the terminal application in macOS Privacy & Security.
 2. Use a charged, dedicated backup ring. Manually factory-reset it with Oura's supported process; this repository never automates resets.
-3. Copy `.env.oura.example` to `.env.oura` and set absolute local paths. Keep the key file outside this repository. Never use `VITE_OURA_AUTH_KEY` or any `VITE_*` secret.
+3. Copy `.env.oura.example` to `.env.oura` and set absolute local paths. Keep the key file outside this repository. With multiple rings, keep the dedicated backup ring closest to the Mac: open_oura selects the strongest matching advertiser. `OURA_RING_ADDRESS` is optional only when that identifier stays stable; CoreBluetooth identifiers can rotate on macOS. Use `OURA_SCAN_TIMEOUT=45` to give the ring time to advertise. Never use `VITE_OURA_AUTH_KEY` or any `VITE_*` secret.
 4. Build the bridge: `pnpm oura:setup`.
 5. Find the ring: `pnpm oura:scan`.
-6. Pair only after the manual reset: `OURA_CONFIRM_PAIR=1 pnpm oura:pair`.
+6. Pair only after the manual reset: `OURA_CONFIRM_PAIR=1 pnpm oura:pair`. The command can take 25–60 seconds while it scans and connects; keep the ring nearby and still. For transport logs, prefix it with `OURA_LOG_LEVEL=debug`.
 7. Verify info and a 15-second accelerometer sample: `pnpm oura:verify`.
 8. Start both processes: `pnpm dev:live`, then select **Connect Oura** in the app and hold the hand still during calibration.
 
