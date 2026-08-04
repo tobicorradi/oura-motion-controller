@@ -4,11 +4,12 @@ import { useMotion } from '../motion/MotionProvider'
 import './appShell.css'
 
 const navigation = [
+  { to: '/', label: 'Home', icon: '⌂' },
   { to: '/motion-visualizer', label: 'Motion Input', icon: '⌁' },
   { to: '/kinetic-field', label: 'Kinetic Field', icon: '✦' },
   { to: '/motion-synthesizer', label: 'Motion Synth', icon: '≈' },
   { to: '/product-viewer', label: '3D Viewer', icon: '◇' },
-  { to: '/orbital-balance', label: 'Spatial Gallery', icon: '▦' },
+  { to: '/spatial-environment', label: 'Spatial Environment', icon: '▦' },
 ]
 
 function sourceText(source: string, status: string) {
@@ -24,13 +25,8 @@ export function AppShell({ children, accent = 'violet' }: { children: ReactNode;
 
   return <div className={`app-shell accent-${accent}`}>
     <aside className="app-sidebar">
-      <Link className="shell-brand" to="/" aria-label="Beyond the Tap home">
-        <span className="shell-brand-mark"><i /><b /></span>
-        <strong>Beyond<br />the Tap</strong>
-      </Link>
-
       <nav className="shell-navigation" aria-label="Experiences">
-        {navigation.map(item => <Link key={item.to} to={item.to} className={location.pathname === item.to ? 'active' : ''}>
+        {navigation.map(item => <Link key={item.to} to={item.to} className={item.to === '/spatial-environment' ? ['/spatial-environment', '/spatial-gallery', '/orbital-balance'].includes(location.pathname) ? 'active' : '' : location.pathname === item.to ? 'active' : ''}>
           <i aria-hidden="true">{item.icon}</i><span>{item.label}</span>
         </Link>)}
       </nav>
@@ -46,7 +42,7 @@ export function AppShell({ children, accent = 'violet' }: { children: ReactNode;
 
     <div className="app-content">
       <div className="mobile-shell-bar">
-        <Link className="shell-brand compact" to="/"><span className="shell-brand-mark"><i /><b /></span><strong>Beyond the Tap</strong></Link>
+        <Link className="shell-brand compact" to="/"><span className="shell-brand-mark"><i /><b /></span><strong>Oura Motion Controller</strong></Link>
         <span>{current?.label ?? 'Experiences'}</span>
       </div>
       {children}
