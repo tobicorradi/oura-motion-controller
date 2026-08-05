@@ -140,4 +140,8 @@ Live Oura Mode uses gravity-based tilt and motion intensity. It does not provide
 
 ## Acknowledgements
 
-Live Oura Mode is possible thanks to [Th0rgal/open_oura](https://github.com/Th0rgal/open_oura), the local open-source client that makes it possible to communicate with the ring over Bluetooth. Follow its license and safety notes. Pairing requires an app authentication key; this project does not extract keys or automate factory resets.
+Live Oura Mode is possible thanks to [Th0rgal/open_oura](https://github.com/Th0rgal/open_oura), the local client project that makes it possible to communicate with the ring over Bluetooth. Follow its repository terms and safety notes. Pairing requires an app authentication key; this project does not extract keys or automate factory resets.
+
+## License
+
+Oura Motion Controller's original source code is released under the [MIT License](LICENSE). This license applies only to the code in this repository. [Th0rgal/open_oura](https://github.com/Th0rgal/open_oura) is an external project used separately at runtime; its code, license and rights remain with its author.
