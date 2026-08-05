@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMotion } from '../motion/MotionProvider'
 import { AxisControls } from './AxisControls'
+import { RingBattery } from './RingBattery'
 import './appShell.css'
 
 const navigation = [
@@ -35,6 +36,7 @@ export function AppShell({ children, accent = 'violet' }: { children: ReactNode;
 
       <div className="shell-sidebar-bottom">
         <AxisControls />
+        <RingBattery />
         <div className="shell-bottom-row">
           <div className={`ring-connection ${source === 'oura' ? 'live' : ''}`}>
             <span className="ring-connection-icon" aria-hidden="true" />

@@ -1,29 +1,12 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { presentationConfig } from '../config/presentation'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { AppShell } from '../components/AppShell'
 import { HomeRingStack } from '../components/HomeRingStack'
+import { RingBattery } from '../components/RingBattery'
 import { useMotion } from '../motion/MotionProvider'
 import './home.css'
 
 const experiences = [{ number: '01', title: 'Motion Input', copy: 'See tilt, direction and intensity become clear visual signals.', to: '/motion-visualizer', icon: '⌁' }, { number: '02', title: 'Kinetic Field', copy: 'Move your hand to push, bend and reorganize a responsive field of particles.', to: '/kinetic-field', icon: '◍' }, { number: '03', title: 'Motion Synth', copy: 'Shape a quiet soundscape with the smallest gesture.', to: '/motion-synthesizer', icon: '≈' }, { number: '04', title: '3D Viewer', copy: 'Turn a product showcase with a natural hand roll.', to: '/product-viewer', icon: '◇' }, { number: '05', title: 'Spatial Environment', copy: 'Control temperature, lighting and airflow through a motion-driven wheel interface.', to: '/spatial-environment', icon: '▦' }]
-type BatteryStatus = { battery: number | null; checkedAt: string }
-
-function RingBattery() {
-  const [status, setStatus] = useState<BatteryStatus | null>(null)
-
-  useEffect(() => {
-    let active = true
-    const load = () => fetch(`/oura-status.json?${Date.now()}`, { cache: 'no-store' }).then(response => response.ok ? response.json() as Promise<BatteryStatus> : null).then(value => { if (active) setStatus(value) }).catch(() => { if (active) setStatus(null) })
-    void load()
-    const timer = window.setInterval(() => void load(), 15000)
-    return () => { active = false; clearInterval(timer) }
-  }, [])
-
-  if (status?.battery === null || !status) return null
-  return <span className="ring-battery" title={`Last checked ${new Date(status.checkedAt).toLocaleTimeString()}`}><i />Oura Ring <strong>{status.battery}%</strong></span>
-}
-
 export function HomePage() { const { useDemoMode } = useMotion(); return <AppShell><main className="home"><nav><Link to="/" className="brand"><span />Oura Motion Controller</Link><div className="home-nav-status"><RingBattery /><ConnectionStatus /></div></nav><section className="hero"><div className="hero-copy"><p className="eyebrow">{presentationConfig.eyebrow}</p><motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7 }}>{presentationConfig.title}</motion.h1><p className="subtitle">{presentationConfig.subtitle}</p><p className="intro">A small experiment in the space beyond taps, swipes, and screens. Motion becomes a quiet, expressive controller.</p><div className="actions"><button className="button muted" onClick={useDemoMode}>Use Demo Mode</button><Link className="button" to="/motion-visualizer">Explore motion <span>→</span></Link></div><Link className="motion-link" to="/motion-visualizer">See how motion works →</Link></div><div className="hero-object"><HomeRingStack /><p>Motion-first interface<br /><i>01 — 05</i></p></div></section><section className="experience-list"><div className="section-intro"><p className="eyebrow">Five studies</p><p>Choose an experience. Every scene responds to the same dependable demo input or your live Oura Ring.</p></div><div className="cards">{experiences.map((item, index) => <motion.article className="experience-card" key={item.title} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .2 + index * .1 }}><span>{item.number}</span><div className="card-icon">{item.icon}</div><h2>{item.title}</h2><p>{item.copy}</p><Link to={item.to}>Launch <b>↗</b></Link></motion.article>)}</div></section></main></AppShell> }
