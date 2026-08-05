@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ConnectionStatus } from '../../components/ConnectionStatus'
 import { AppShell } from '../../components/AppShell'
 import { useMotion } from '../../motion/MotionProvider'
-import { BURST_THRESHOLD, STABLE_DELAY_MS, formationKeys, formationLabels, qualityKeys, qualityLabels } from './constants'
+import { BURST_THRESHOLD, STABLE_DELAY_MS, qualityKeys, qualityLabels } from './constants'
 import { KineticFieldScene } from './KineticFieldScene'
 import { DirectionArrow, KineticTips, MovementPanel, ParticleMetricsPanel } from './KineticPanels'
 import type { FieldMode } from './types'
@@ -11,8 +11,8 @@ import './kinetic.css'
 
 export function KineticFieldPage() {
   const { motion, source, status, useDemoMode } = useMotion()
-  const [mode, setMode] = useState<FieldMode>('repel')
-  const [formation, setFormation] = useState<typeof formationKeys[number]>('ring')
+  const mode: FieldMode = 'repel'
+  const formation = 'sphere' as const
   const [quality, setQuality] = useState<typeof qualityKeys[number]>('balanced')
   const [radius, setRadius] = useState(2.3)
   const [resetSignal, setResetSignal] = useState(0)
@@ -29,9 +29,6 @@ export function KineticFieldPage() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return
-      if (event.key === '1') { setMode('repel'); setFormation('ring'); setInteracted(true) }
-      if (event.key === '2') { setMode('repel'); setFormation('sphere'); setInteracted(true) }
-      if (event.key === '3') { setMode('flow'); setInteracted(true) }
       if (event.key === 'r' || event.key === 'R') { setResetSignal(value => value + 1); setInteracted(true) }
       if (event.code === 'Space') setInteracted(true)
     }
@@ -67,13 +64,6 @@ export function KineticFieldPage() {
     </section>
 
     <section className="kinetic-stage">
-      <div className="kinetic-toolbar">
-        <div className="kinetic-control-group" role="group" aria-label="Force mode">
-          <button className={mode === 'repel' && formation === 'ring' ? 'active' : ''} onClick={() => { setMode('repel'); setFormation('ring'); setInteracted(true) }}>Repel</button>
-          <button className={formation === 'sphere' ? 'active' : ''} onClick={() => { setMode('repel'); setFormation('sphere'); setInteracted(true) }}>Sphere</button>
-          <button className={mode === 'flow' ? 'active' : ''} onClick={() => { setMode('flow'); setInteracted(true) }}>Flow</button>
-        </div>
-      </div>
       <label className="kinetic-radius-control"><span>Particle Radius <b>{radius.toFixed(2)}</b></span><input type="range" min="0.8" max="3.5" step="0.05" value={radius} onChange={event => setRadius(Number(event.target.value))} /></label>
       <div className="kinetic-grid">
         <div className="kinetic-main-column"><div className="kinetic-scene-shell">
@@ -84,12 +74,12 @@ export function KineticFieldPage() {
         <div className="kinetic-instructions"><div className="hand-icon">✋</div><div><strong>Move your hand</strong><p>Try moving in different directions<br />to see the particles react.</p></div><ul><li>Up</li><li>Right</li><li>Down</li><li>Left</li></ul></div></div>
         <aside className="kinetic-side-column"><MovementPanel horizontal={motion.horizontal} vertical={motion.vertical} energy={motion.energy} stateLabel={stateLabel} /><ParticleMetricsPanel quality={quality} energy={motion.energy} /><KineticTips /></aside>
       </div>
-      <details className="kinetic-advanced"><summary>Field settings</summary><div><label>Formation {formationKeys.map(key => <button key={key} className={formation === key ? 'active' : ''} onClick={() => setFormation(key)}>{formationLabels[key]}</button>)}</label><label>Quality {qualityKeys.map(key => <button key={key} className={quality === key ? 'active' : ''} onClick={() => setQuality(key)}>{qualityLabels[key]}</button>)}</label><button className="kinetic-reset" onClick={() => setResetSignal(value => value + 1)}>Reset <kbd>R</kbd></button></div></details>
+      <details className="kinetic-advanced"><summary>Field settings</summary><div><label>Quality {qualityKeys.map(key => <button key={key} className={quality === key ? 'active' : ''} onClick={() => setQuality(key)}>{qualityLabels[key]}</button>)}</label><button className="kinetic-reset" onClick={() => setResetSignal(value => value + 1)}>Reset <kbd>R</kbd></button></div></details>
     </section>
 
     <footer className="kinetic-footer">
       <p>Particles react to tilt, motion energy and stillness. This scene suggests force and flow, not literal hand position tracking.</p>
-      <span>{interacted ? '1 Repel · 2 Attract · 3 Flow · R reset' : 'Mouse and keyboard remain available in Demo Mode.'}</span>
+      <span>{interacted ? 'Sphere field active · R reset' : 'Mouse and keyboard remain available in Demo Mode.'}</span>
     </footer>
   </main></AppShell>
 }

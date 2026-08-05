@@ -9,3 +9,4 @@ key.hex
 open_oura/
 captures/
 oura.db
+public/oura-status.json

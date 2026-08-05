@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMotion } from '../motion/MotionProvider'
+import { AxisControls } from './AxisControls'
 import './appShell.css'
 
 const navigation = [
@@ -33,11 +34,14 @@ export function AppShell({ children, accent = 'violet' }: { children: ReactNode;
       </nav>
 
       <div className="shell-sidebar-bottom">
-        <div className={`ring-connection ${source === 'oura' ? 'live' : ''}`}>
-          <span className="ring-connection-icon" aria-hidden="true" />
-          <div><strong>Oura Ring</strong><small>{sourceText(source, status)}</small></div>
+        <AxisControls />
+        <div className="shell-bottom-row">
+          <div className={`ring-connection ${source === 'oura' ? 'live' : ''}`}>
+            <span className="ring-connection-icon" aria-hidden="true" />
+            <div><strong>Oura Ring</strong><small>{sourceText(source, status)}</small></div>
+          </div>
+          <Link to="/motion-visualizer" className="shell-diagnostics" aria-label="Open motion diagnostics">⚙</Link>
         </div>
-        <Link to="/motion-visualizer" className="shell-diagnostics" aria-label="Open motion diagnostics">⚙</Link>
       </div>
     </aside>
 

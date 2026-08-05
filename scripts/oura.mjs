@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 
@@ -7,6 +7,18 @@ const passthroughStdio = ['ignore', 'inherit', 'inherit']
 const run = (command, args, options = {}) => { const result = spawnSync(command, args, { cwd: repo, stdio: passthroughStdio, env, ...options }); if (result.error) { console.error(`Could not run ${command}: ${result.error.message}`); return 1 } return result.status ?? 1 }
 const requireBinary = () => { if (!existsSync(binary)) { console.error('open_oura is not built. Run: pnpm oura:setup'); process.exit(1) } }
 const withKey = args => { if (!keyFile) { console.error('Set OURA_KEY_FILE to a secure local 16-byte key-file path in .env.oura.'); process.exit(1) } return ['--name', ringName, '--scan-timeout', scanTimeout, ...(ringAddress ? ['--address', ringAddress] : []), '--key-file', keyFile, ...args] }
+const statusFile = resolve(root, 'public/oura-status.json')
+const captureBattery = () => {
+  const checkedAt = new Date().toISOString()
+  const result = spawnSync(binary, withKey(['info']), { cwd: repo, encoding: 'utf8', env })
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`
+  const match = output.match(/Battery\s*:\s*(\d{1,3})\s*%/i)
+  const battery = match ? Math.max(0, Math.min(100, Number(match[1]))) : null
+  mkdirSync(resolve(root, 'public'), { recursive: true })
+  writeFileSync(statusFile, JSON.stringify({ battery, checkedAt }))
+  if (battery !== null) console.log(`Oura battery: ${battery}%`)
+  else console.warn('Could not read Oura battery. Live motion will still start normally.')
+}
 const vitePort = env.VITE_PORT || '5173'
 const listPids = args => {
   const result = spawnSync('lsof', args, { encoding: 'utf8', env })
@@ -58,7 +70,7 @@ if (command === 'setup') { if (!existsSync(repo)) { const parent = resolve(repo,
 if (command === 'scan') { requireBinary(); process.exit(run(binary, ['scan'])) }
 if (command === 'pair') { requireBinary(); if (env.OURA_CONFIRM_PAIR !== '1') { console.error('Pairing writes an auth key. Manually factory-reset the dedicated backup ring first, then rerun with OURA_CONFIRM_PAIR=1.'); process.exit(1) } if (!keyFile) { console.error('Set OURA_KEY_FILE outside the repository before pairing.'); process.exit(1) } if (existsSync(keyFile) && env.OURA_CONFIRM_REINSTALL !== '1') { console.error('A local key file already exists. To retry an interrupted pairing with that exact same key, rerun with OURA_CONFIRM_REINSTALL=1. This does not generate or overwrite a key.'); process.exit(1) } console.log(`Pairing ${ringName}${ringAddress ? ` (${ringAddress})` : ''}…`); console.log('Step 1/3: scanning and connecting (usually 25–60 seconds). Keep the ring close and still.'); console.log('Step 2/3: installing or reusing the local app-auth key.'); console.log('Step 3/3: verifying authentication and battery.'); if (env.OURA_LOG_LEVEL) console.log(`Bridge logs enabled at ${env.OURA_LOG_LEVEL}.`); const result = run(binary, withKey(['pair'])); if (result === 0) console.log('Pairing completed. Next: pnpm oura:verify'); process.exit(result) }
 if (command === 'verify') { requireBinary(); if (run(binary, withKey(['info']))) process.exit(1); process.exit(run(binary, withKey(['accel', '--seconds', '15']))) }
-if (command === 'serve') { requireBinary(); process.exit(run(binary, withKey(['viz', '--port', port, '--minutes', minutes]))) }
+if (command === 'serve') { requireBinary(); captureBattery(); process.exit(run(binary, withKey(['viz', '--port', port, '--minutes', minutes]))) }
 if (command === 'live') { const web = spawn('pnpm', ['dev'], { stdio: passthroughStdio, env }); const bridge = spawn('node', ['scripts/oura.mjs', 'serve'], { stdio: passthroughStdio, env }); bridge.on('exit', code => console.error(`[oura] bridge exited (${code ?? 'unknown'}); React remains available in Demo Mode.`)); const stop = () => { web.kill('SIGINT'); bridge.kill('SIGINT') }; process.on('SIGINT', stop); process.on('SIGTERM', stop); web.on('exit', code => process.exit(code ?? 0)); }
 if (command === 'stop') {
   const portPids = listPids(['-ti', `:${vitePort}`, '-ti', `:${port}`])
