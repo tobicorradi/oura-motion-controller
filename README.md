@@ -128,4 +128,6 @@ Use **Invert X** or **Invert Y** in the sidebar. Use **Reset position** while ho
 
 Live Oura Mode uses gravity-based tilt and motion intensity. It does not provide exact hand position, reliable yaw, finger tracking or Oura health scores. Every experience remains usable in Demo Mode if Bluetooth is unavailable.
 
-This project uses [open_oura](https://github.com/Th0rgal/open_oura), a local open-source Oura BLE client. Follow its license and safety notes. Pairing requires an app authentication key; this project does not extract keys or automate factory resets.
+## Acknowledgements
+
+Live Oura Mode is possible thanks to [Th0rgal/open_oura](https://github.com/Th0rgal/open_oura), the local open-source client that makes it possible to communicate with the ring over Bluetooth. Follow its license and safety notes. Pairing requires an app authentication key; this project does not extract keys or automate factory resets.
