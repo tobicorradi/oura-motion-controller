@@ -1,42 +1,489 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
-import { demoMotion } from './demoMotionSource'
-import { calculatePitch, calculateRoll, clamp, deadZone, smooth } from './processing'
-import { OuraSseMotionSource, type OuraAcmSample } from './oura/OuraSseMotionSource'
-import { averageNormalized, createOrientationBasis, defaultOuraSettings, deriveTilt, magnitude, normalizeVector, type OrientationBasis, type OuraMotionSettings, type Vec3 } from './oura/processing'
-import type { MotionDiagnostics, MotionSource, MotionStatus, ProcessedMotion, RawMotion } from './types'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from "react";
+import { demoMotion } from "./demoMotionSource";
+import {
+  calculatePitch,
+  calculateRoll,
+  clamp,
+  deadZone,
+  smooth,
+} from "./processing";
+import {
+  OuraSseMotionSource,
+  type OuraAcmSample,
+} from "./oura/OuraSseMotionSource";
+import {
+  averageNormalized,
+  createOrientationBasis,
+  defaultOuraSettings,
+  deriveTilt,
+  magnitude,
+  normalizeVector,
+  type OrientationBasis,
+  type OuraMotionSettings,
+  type Vec3,
+} from "./oura/processing";
+import type {
+  MotionDiagnostics,
+  MotionSource,
+  MotionStatus,
+  ProcessedMotion,
+  RawMotion,
+} from "./types";
 
-type MotionContextValue = { motion: ProcessedMotion; source: MotionSource; status: MotionStatus; diagnostics: MotionDiagnostics; autoDemo: boolean; connectOura: () => Promise<void>; disconnectOura: () => Promise<void>; startStream: () => Promise<void>; stopStream: () => Promise<void>; useDemoMode: () => void; switchToDemo: () => void; toggleAutoDemo: () => void; reset: () => void; calibrate: () => void; isCalibrated: boolean; updateSettings: (settings: Partial<OuraMotionSettings>) => void; resetMotionSettings: () => void }
-const emptyRaw: RawMotion = { x: 0, y: 0, z: 1, timestamp: 0, sequence: 0 }
-const emptyMotion: ProcessedMotion = { raw: emptyRaw, pitch: 0, roll: 0, normalizedPitch: 0, normalizedRoll: 0, horizontal: 0, vertical: 0, energy: 0, isStill: true, sampleRateHz: 0 }
-const emptyDiagnostics: MotionDiagnostics = { bridgeReachable: false, sseConnected: false, calibrated: false, samplesReceived: 0, sampleRateHz: 0, lastSampleAgeMs: 0, reconnectAttempts: 0, horizontalDegrees: 0, verticalDegrees: 0, rawMagnitude: 0, settings: defaultOuraSettings }
-const MotionContext = createContext<MotionContextValue | null>(null)
+type MotionContextValue = {
+  motion: ProcessedMotion;
+  source: MotionSource;
+  status: MotionStatus;
+  diagnostics: MotionDiagnostics;
+  autoDemo: boolean;
+  connectOura: () => Promise<void>;
+  disconnectOura: () => Promise<void>;
+  startStream: () => Promise<void>;
+  stopStream: () => Promise<void>;
+  useDemoMode: () => void;
+  switchToDemo: () => void;
+  toggleAutoDemo: () => void;
+  reset: () => void;
+  calibrate: () => void;
+  isCalibrated: boolean;
+  updateSettings: (settings: Partial<OuraMotionSettings>) => void;
+  resetMotionSettings: () => void;
+};
+const emptyRaw: RawMotion = { x: 0, y: 0, z: 1, timestamp: 0, sequence: 0 };
+const emptyMotion: ProcessedMotion = {
+  raw: emptyRaw,
+  pitch: 0,
+  roll: 0,
+  normalizedPitch: 0,
+  normalizedRoll: 0,
+  horizontal: 0,
+  vertical: 0,
+  energy: 0,
+  isStill: true,
+  sampleRateHz: 0,
+};
+const emptyDiagnostics: MotionDiagnostics = {
+  bridgeReachable: false,
+  sseConnected: false,
+  calibrated: false,
+  samplesReceived: 0,
+  sampleRateHz: 0,
+  lastSampleAgeMs: 0,
+  reconnectAttempts: 0,
+  horizontalDegrees: 0,
+  verticalDegrees: 0,
+  rawMagnitude: 0,
+  settings: defaultOuraSettings,
+};
+const MotionContext = createContext<MotionContextValue | null>(null);
 
 export function MotionProvider({ children }: PropsWithChildren) {
-  const [motion, setMotion] = useState<ProcessedMotion>(emptyMotion); const [source, setSource] = useState<MotionSource>('demo'); const [status, setStatus] = useState<MotionStatus>('demo'); const [autoDemo, setAutoDemo] = useState(true); const [diagnostics, setDiagnostics] = useState<MotionDiagnostics>(emptyDiagnostics)
-  const sourceRef = useRef<MotionSource>('demo'); const statusRef = useRef<MotionStatus>('demo'); const autoDemoRef = useRef(true); const input = useRef({ x: 0, y: 0, pulse: 0 }); const filtered = useRef({ pitch: 0, roll: 0 }); const latest = useRef<ProcessedMotion>(emptyMotion); const rafPublish = useRef(0); const sequence = useRef(0); const ouraSource = useRef<OuraSseMotionSource | null>(null); const settings = useRef<OuraMotionSettings>({ ...defaultOuraSettings }); const basis = useRef<OrientationBasis | null>(null); const calibrationSamples = useRef<Vec3[]>([]); const calibrationTimer = useRef<number | null>(null); const sampleTimes = useRef<number[]>([]); const previousUnit = useRef<Vec3 | null>(null); const smoothedLive = useRef({ horizontal: 0, vertical: 0, energy: 0, stillSince: performance.now(), still: true }); const lastOuraSample = useRef(0)
-  const updateStatus = useCallback((next: MotionStatus) => { statusRef.current = next; setStatus(next) }, [])
-  const publish = useCallback((next: ProcessedMotion) => { latest.current = next; if (rafPublish.current) return; rafPublish.current = requestAnimationFrame(() => { rafPublish.current = 0; setMotion(latest.current) }) }, [])
-  const syncDiagnostics = useCallback((partial: Partial<MotionDiagnostics>) => setDiagnostics(current => ({ ...current, ...partial, settings: settings.current })), [])
-  const finishCalibration = useCallback(() => { const neutral = averageNormalized(calibrationSamples.current); calibrationSamples.current = []; if (!neutral) { updateStatus('error'); return } basis.current = createOrientationBasis(neutral); syncDiagnostics({ calibrated: true }); updateStatus('streaming') }, [syncDiagnostics, updateStatus])
-  const calibrate = useCallback(() => { if (sourceRef.current !== 'oura') { filtered.current = { pitch: 0, roll: 0 }; return } if (!lastOuraSample.current) return; if (calibrationTimer.current) clearTimeout(calibrationTimer.current); calibrationSamples.current = []; updateStatus('calibrating'); calibrationTimer.current = window.setTimeout(finishCalibration, 3000) }, [finishCalibration, updateStatus])
-  const processOuraSample = useCallback((sample: OuraAcmSample) => {
-    const timestamp = performance.now(); const raw: RawMotion = { ...sample, timestamp, sequence: ++sequence.current }; const vector: Vec3 = [sample.x, sample.y, sample.z]; const unit = normalizeVector(vector); if (!unit) return
-    lastOuraSample.current = timestamp; sampleTimes.current.push(timestamp); sampleTimes.current = sampleTimes.current.filter(time => timestamp - time <= 2000); const rate = sampleTimes.current.length > 1 ? (sampleTimes.current.length - 1) / Math.max(.001, (timestamp - sampleTimes.current[0]) / 1000) : 0
-    if (statusRef.current === 'calibrating') calibrationSamples.current.push(unit)
-    const currentBasis = basis.current; const tilt = currentBasis ? deriveTilt(vector, currentBasis, settings.current) : { horizontalDegrees: 0, verticalDegrees: 0, horizontal: 0, vertical: 0 }; const factor = 1 - Math.pow(1 - settings.current.smoothing, 60 / Math.max(1, rate || 50)); const live = smoothedLive.current; live.horizontal += (tilt.horizontal - live.horizontal) * factor; live.vertical += (tilt.vertical - live.vertical) * factor
-    const directionDelta = previousUnit.current ? Math.min(1, magnitude([unit[0] - previousUnit.current[0], unit[1] - previousUnit.current[1], unit[2] - previousUnit.current[2]]) * 3) : 0; previousUnit.current = unit; const rawDeviation = Math.min(1, Math.abs(magnitude(vector) / Math.max(1, settings.current.countsPerG) - 1)); const targetEnergy = Math.min(1, directionDelta * .72 + rawDeviation * .28); live.energy = live.energy * .87 + targetEnergy * .13; if (live.energy > .075) { live.still = false; live.stillSince = timestamp } else if (live.energy < .035 && timestamp - live.stillSince > 500) live.still = true
-    const next: ProcessedMotion = { raw, pitch: tilt.verticalDegrees * Math.PI / 180, roll: tilt.horizontalDegrees * Math.PI / 180, normalizedPitch: live.vertical, normalizedRoll: live.horizontal, horizontal: live.horizontal, vertical: live.vertical, energy: live.energy, isStill: live.still, sampleRateHz: rate }; publish(next); syncDiagnostics({ bridgeReachable: true, sseConnected: true, samplesReceived: raw.sequence, sampleRateHz: rate, lastSampleAgeMs: 0, horizontalDegrees: tilt.horizontalDegrees, verticalDegrees: tilt.verticalDegrees, rawMagnitude: magnitude(vector) }); if (statusRef.current === 'waiting-for-data') calibrate()
-  }, [calibrate, publish, syncDiagnostics])
-  const disconnectOura = useCallback(async () => { if (calibrationTimer.current) clearTimeout(calibrationTimer.current); calibrationTimer.current = null; await ouraSource.current?.disconnect(); ouraSource.current = null; basis.current = null; sourceRef.current = 'demo'; setSource('demo'); updateStatus('demo'); setDiagnostics({ ...emptyDiagnostics, settings: settings.current }); setAutoDemo(true) }, [updateStatus])
-  const connectOura = useCallback(async () => { if (ouraSource.current) return; sourceRef.current = 'oura'; setSource('oura'); updateStatus('connecting'); setDiagnostics(current => ({ ...current, bridgeReachable: false, sseConnected: false, calibrated: false, samplesReceived: 0, reconnectAttempts: 0 })); const bridge = new OuraSseMotionSource({ onSample: processOuraSample, onState: state => { if (state === 'connected') syncDiagnostics({ bridgeReachable: true, sseConnected: true }); if (state === 'reconnecting') { updateStatus('reconnecting'); syncDiagnostics({ sseConnected: false }) } if (state === 'error') updateStatus('error') } }); ouraSource.current = bridge; try { const reachable = await bridge.checkBridge(); if (!reachable) { updateStatus('bridge-offline'); syncDiagnostics({ bridgeReachable: false }); ouraSource.current = null; return } syncDiagnostics({ bridgeReachable: true }); await bridge.connect(); updateStatus('waiting-for-data'); window.setTimeout(() => { if (sourceRef.current === 'oura' && !lastOuraSample.current) updateStatus('error') }, 8000) } catch { updateStatus('error'); ouraSource.current = null } }, [processOuraSample, syncDiagnostics, updateStatus])
-  const useDemoMode = useCallback(() => { void disconnectOura() }, [disconnectOura]); const reset = useCallback(() => { input.current = { x: 0, y: 0, pulse: 0 }; filtered.current = { pitch: 0, roll: 0 }; if (sourceRef.current === 'oura') calibrate() }, [calibrate]); const toggleAutoDemo = useCallback(() => { if (sourceRef.current === 'demo') setAutoDemo(value => { autoDemoRef.current = !value; return !value }) }, [])
-  const updateSettings = useCallback((next: Partial<OuraMotionSettings>) => { settings.current = { ...settings.current, ...next }; syncDiagnostics({ settings: settings.current }) }, [syncDiagnostics]); const resetMotionSettings = useCallback(() => { settings.current = { ...defaultOuraSettings }; syncDiagnostics({ settings: settings.current }) }, [syncDiagnostics])
-  useEffect(() => { sourceRef.current = source }, [source]); useEffect(() => { statusRef.current = status }, [status]); useEffect(() => { autoDemoRef.current = autoDemo }, [autoDemo])
-  useEffect(() => { if (source !== 'oura') return; const timer = window.setInterval(() => { if (!lastOuraSample.current) return; const age = performance.now() - lastOuraSample.current; syncDiagnostics({ lastSampleAgeMs: age }); if (age > 3500 && (statusRef.current === 'streaming' || statusRef.current === 'calibrating')) updateStatus('reconnecting') }, 700); return () => clearInterval(timer) }, [source, syncDiagnostics, updateStatus])
+  const [motion, setMotion] = useState<ProcessedMotion>(emptyMotion);
+  const [source, setSource] = useState<MotionSource>("demo");
+  const [status, setStatus] = useState<MotionStatus>("demo");
+  const [autoDemo, setAutoDemo] = useState(true);
+  const [diagnostics, setDiagnostics] =
+    useState<MotionDiagnostics>(emptyDiagnostics);
+  const sourceRef = useRef<MotionSource>("demo");
+  const statusRef = useRef<MotionStatus>("demo");
+  const autoDemoRef = useRef(true);
+  const input = useRef({ x: 0, y: 0, pulse: 0 });
+  const filtered = useRef({ pitch: 0, roll: 0 });
+  const latest = useRef<ProcessedMotion>(emptyMotion);
+  const rafPublish = useRef(0);
+  const sequence = useRef(0);
+  const ouraSource = useRef<OuraSseMotionSource | null>(null);
+  const settings = useRef<OuraMotionSettings>({ ...defaultOuraSettings });
+  const basis = useRef<OrientationBasis | null>(null);
+  const calibrationSamples = useRef<Vec3[]>([]);
+  const calibrationTimer = useRef<number | null>(null);
+  const sampleTimes = useRef<number[]>([]);
+  const previousUnit = useRef<Vec3 | null>(null);
+  const smoothedLive = useRef({
+    horizontal: 0,
+    vertical: 0,
+    energy: 0,
+    stillSince: performance.now(),
+    still: true,
+  });
+  const lastOuraSample = useRef(0);
+  const updateStatus = useCallback((next: MotionStatus) => {
+    statusRef.current = next;
+    setStatus(next);
+  }, []);
+  const publish = useCallback((next: ProcessedMotion) => {
+    latest.current = next;
+    if (rafPublish.current) return;
+    rafPublish.current = requestAnimationFrame(() => {
+      rafPublish.current = 0;
+      setMotion(latest.current);
+    });
+  }, []);
+  const syncDiagnostics = useCallback(
+    (partial: Partial<MotionDiagnostics>) =>
+      setDiagnostics((current) => ({
+        ...current,
+        ...partial,
+        settings: settings.current,
+      })),
+    [],
+  );
+  const finishCalibration = useCallback(() => {
+    const neutral = averageNormalized(calibrationSamples.current);
+    calibrationSamples.current = [];
+    if (!neutral) {
+      updateStatus("error");
+      return;
+    }
+    basis.current = createOrientationBasis(neutral);
+    syncDiagnostics({ calibrated: true });
+    updateStatus("streaming");
+  }, [syncDiagnostics, updateStatus]);
+  const calibrate = useCallback(() => {
+    if (sourceRef.current !== "oura") {
+      filtered.current = { pitch: 0, roll: 0 };
+      return;
+    }
+    if (!lastOuraSample.current) return;
+    if (calibrationTimer.current) clearTimeout(calibrationTimer.current);
+    calibrationSamples.current = [];
+    updateStatus("calibrating");
+    calibrationTimer.current = window.setTimeout(finishCalibration, 3000);
+  }, [finishCalibration, updateStatus]);
+  const processOuraSample = useCallback(
+    (sample: OuraAcmSample) => {
+      const timestamp = performance.now();
+      const raw: RawMotion = {
+        ...sample,
+        timestamp,
+        sequence: ++sequence.current,
+      };
+      const vector: Vec3 = [sample.x, sample.y, sample.z];
+      const unit = normalizeVector(vector);
+      if (!unit) return;
+      lastOuraSample.current = timestamp;
+      sampleTimes.current.push(timestamp);
+      sampleTimes.current = sampleTimes.current.filter(
+        (time) => timestamp - time <= 2000,
+      );
+      const rate =
+        sampleTimes.current.length > 1
+          ? (sampleTimes.current.length - 1) /
+            Math.max(0.001, (timestamp - sampleTimes.current[0]) / 1000)
+          : 0;
+      if (statusRef.current === "calibrating")
+        calibrationSamples.current.push(unit);
+      const currentBasis = basis.current;
+      const tilt = currentBasis
+        ? deriveTilt(vector, currentBasis, settings.current)
+        : {
+            horizontalDegrees: 0,
+            verticalDegrees: 0,
+            horizontal: 0,
+            vertical: 0,
+          };
+      const factor =
+        1 -
+        Math.pow(1 - settings.current.smoothing, 60 / Math.max(1, rate || 50));
+      const live = smoothedLive.current;
+      live.horizontal += (tilt.horizontal - live.horizontal) * factor;
+      live.vertical += (tilt.vertical - live.vertical) * factor;
+      const directionDelta = previousUnit.current
+        ? Math.min(
+            1,
+            magnitude([
+              unit[0] - previousUnit.current[0],
+              unit[1] - previousUnit.current[1],
+              unit[2] - previousUnit.current[2],
+            ]) * 3,
+          )
+        : 0;
+      previousUnit.current = unit;
+      const rawDeviation = Math.min(
+        1,
+        Math.abs(
+          magnitude(vector) / Math.max(1, settings.current.countsPerG) - 1,
+        ),
+      );
+      const targetEnergy = Math.min(
+        1,
+        directionDelta * 0.72 + rawDeviation * 0.28,
+      );
+      live.energy = live.energy * 0.87 + targetEnergy * 0.13;
+      if (live.energy > 0.075) {
+        live.still = false;
+        live.stillSince = timestamp;
+      } else if (live.energy < 0.035 && timestamp - live.stillSince > 500)
+        live.still = true;
+      const next: ProcessedMotion = {
+        raw,
+        pitch: (tilt.verticalDegrees * Math.PI) / 180,
+        roll: (tilt.horizontalDegrees * Math.PI) / 180,
+        normalizedPitch: live.vertical,
+        normalizedRoll: live.horizontal,
+        horizontal: live.horizontal,
+        vertical: live.vertical,
+        energy: live.energy,
+        isStill: live.still,
+        sampleRateHz: rate,
+      };
+      publish(next);
+      syncDiagnostics({
+        bridgeReachable: true,
+        sseConnected: true,
+        samplesReceived: raw.sequence,
+        sampleRateHz: rate,
+        lastSampleAgeMs: 0,
+        horizontalDegrees: tilt.horizontalDegrees,
+        verticalDegrees: tilt.verticalDegrees,
+        rawMagnitude: magnitude(vector),
+      });
+      if (statusRef.current === "waiting-for-data") calibrate();
+    },
+    [calibrate, publish, syncDiagnostics],
+  );
+  const disconnectOura = useCallback(async () => {
+    if (calibrationTimer.current) clearTimeout(calibrationTimer.current);
+    calibrationTimer.current = null;
+    await ouraSource.current?.disconnect();
+    ouraSource.current = null;
+    basis.current = null;
+    sourceRef.current = "demo";
+    setSource("demo");
+    updateStatus("demo");
+    setDiagnostics({ ...emptyDiagnostics, settings: settings.current });
+    setAutoDemo(true);
+  }, [updateStatus]);
+  const connectOura = useCallback(async () => {
+    if (ouraSource.current) return;
+    sourceRef.current = "oura";
+    setSource("oura");
+    updateStatus("connecting");
+    setDiagnostics((current) => ({
+      ...current,
+      bridgeReachable: false,
+      sseConnected: false,
+      calibrated: false,
+      samplesReceived: 0,
+      reconnectAttempts: 0,
+    }));
+    const bridge = new OuraSseMotionSource({
+      onSample: processOuraSample,
+      onState: (state) => {
+        if (state === "connected")
+          syncDiagnostics({ bridgeReachable: true, sseConnected: true });
+        if (state === "reconnecting") {
+          updateStatus("reconnecting");
+          syncDiagnostics({ sseConnected: false });
+        }
+        if (state === "error") updateStatus("error");
+      },
+    });
+    ouraSource.current = bridge;
+    try {
+      const reachable = await bridge.checkBridge();
+      if (!reachable) {
+        updateStatus("bridge-offline");
+        syncDiagnostics({ bridgeReachable: false });
+        ouraSource.current = null;
+        return;
+      }
+      syncDiagnostics({ bridgeReachable: true });
+      await bridge.connect();
+      updateStatus("waiting-for-data");
+      window.setTimeout(() => {
+        if (sourceRef.current === "oura" && !lastOuraSample.current)
+          updateStatus("error");
+      }, 8000);
+    } catch {
+      updateStatus("error");
+      ouraSource.current = null;
+    }
+  }, [processOuraSample, syncDiagnostics, updateStatus]);
+  const useDemoMode = useCallback(() => {
+    void disconnectOura();
+  }, [disconnectOura]);
+  const reset = useCallback(() => {
+    input.current = { x: 0, y: 0, pulse: 0 };
+    filtered.current = { pitch: 0, roll: 0 };
+    if (sourceRef.current === "oura") calibrate();
+  }, [calibrate]);
+  const toggleAutoDemo = useCallback(() => {
+    if (sourceRef.current === "demo")
+      setAutoDemo((value) => {
+        autoDemoRef.current = !value;
+        return !value;
+      });
+  }, []);
+  const updateSettings = useCallback(
+    (next: Partial<OuraMotionSettings>) => {
+      settings.current = { ...settings.current, ...next };
+      syncDiagnostics({ settings: settings.current });
+    },
+    [syncDiagnostics],
+  );
+  const resetMotionSettings = useCallback(() => {
+    settings.current = { ...defaultOuraSettings };
+    syncDiagnostics({ settings: settings.current });
+  }, [syncDiagnostics]);
   useEffect(() => {
-    const onPointer = (event: PointerEvent) => { if (sourceRef.current !== 'demo') return; input.current.x = clamp((event.clientX / innerWidth - .5) * 2); input.current.y = clamp((event.clientY / innerHeight - .5) * 2) }; const onKey = (event: KeyboardEvent) => { if (sourceRef.current !== 'demo') return; const step = .18; if (['ArrowLeft', 'a', 'A'].includes(event.key)) input.current.x = clamp(input.current.x - step); if (['ArrowRight', 'd', 'D'].includes(event.key)) input.current.x = clamp(input.current.x + step); if (['ArrowUp', 'w', 'W'].includes(event.key)) input.current.y = clamp(input.current.y - step); if (['ArrowDown', 's', 'S'].includes(event.key)) input.current.y = clamp(input.current.y + step); if (event.code === 'Space') { event.preventDefault(); input.current.pulse = .65 }; if (event.key === 'r' || event.key === 'R') reset() }; addEventListener('pointermove', onPointer); addEventListener('keydown', onKey); let frame = 0; const update = () => { if (sourceRef.current === 'demo') { const time = performance.now() / 1000; const x = autoDemoRef.current ? Math.sin(time * .7) * .46 : input.current.x; const y = autoDemoRef.current ? Math.cos(time * .56) * .3 : input.current.y; const raw = { ...demoMotion(x, y, input.current.pulse), sequence: ++sequence.current }; input.current.pulse *= .91; const pitch = smooth(filtered.current.pitch, calculatePitch(raw)); const roll = smooth(filtered.current.roll, calculateRoll(raw)); const energy = Math.min(1, Math.abs(pitch - filtered.current.pitch) * 5 + Math.abs(roll - filtered.current.roll) * 5 + input.current.pulse); filtered.current = { pitch, roll }; publish({ raw, pitch, roll, normalizedPitch: deadZone(clamp(pitch / .72)), normalizedRoll: deadZone(clamp(roll / .72)), horizontal: deadZone(clamp(roll / .72)), vertical: deadZone(clamp(pitch / .72)), energy, isStill: energy < .035, sampleRateHz: 0 }) } frame = requestAnimationFrame(update) }; frame = requestAnimationFrame(update); return () => { removeEventListener('pointermove', onPointer); removeEventListener('keydown', onKey); cancelAnimationFrame(frame) } }, [publish, reset])
-  useEffect(() => { const unload = () => { void ouraSource.current?.disconnect() }; addEventListener('beforeunload', unload); return () => { removeEventListener('beforeunload', unload); if (calibrationTimer.current) clearTimeout(calibrationTimer.current); if (rafPublish.current) cancelAnimationFrame(rafPublish.current); void ouraSource.current?.disconnect() } }, [])
-  const value = useMemo(() => ({ motion, source, status, diagnostics, autoDemo, connectOura, disconnectOura, startStream: connectOura, stopStream: disconnectOura, useDemoMode, switchToDemo: useDemoMode, toggleAutoDemo, reset, calibrate, isCalibrated: diagnostics.calibrated, updateSettings, resetMotionSettings }), [motion, source, status, diagnostics, autoDemo, connectOura, disconnectOura, useDemoMode, toggleAutoDemo, reset, calibrate, updateSettings, resetMotionSettings])
-  return <MotionContext.Provider value={value}>{children}</MotionContext.Provider>
+    sourceRef.current = source;
+  }, [source]);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+  useEffect(() => {
+    autoDemoRef.current = autoDemo;
+  }, [autoDemo]);
+  useEffect(() => {
+    if (source !== "oura") return;
+    const timer = window.setInterval(() => {
+      if (!lastOuraSample.current) return;
+      const age = performance.now() - lastOuraSample.current;
+      syncDiagnostics({ lastSampleAgeMs: age });
+      if (
+        age > 3500 &&
+        (statusRef.current === "streaming" ||
+          statusRef.current === "calibrating")
+      )
+        updateStatus("reconnecting");
+    }, 700);
+    return () => clearInterval(timer);
+  }, [source, syncDiagnostics, updateStatus]);
+  useEffect(() => {
+    const onPointer = (event: PointerEvent) => {
+      if (sourceRef.current !== "demo") return;
+      input.current.x = clamp((event.clientX / innerWidth - 0.5) * 2);
+      input.current.y = clamp((event.clientY / innerHeight - 0.5) * 2);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (sourceRef.current !== "demo") return;
+      const step = 0.18;
+      if (["ArrowLeft", "a", "A"].includes(event.key))
+        input.current.x = clamp(input.current.x - step);
+      if (["ArrowRight", "d", "D"].includes(event.key))
+        input.current.x = clamp(input.current.x + step);
+      if (["ArrowUp", "w", "W"].includes(event.key))
+        input.current.y = clamp(input.current.y - step);
+      if (["ArrowDown", "s", "S"].includes(event.key))
+        input.current.y = clamp(input.current.y + step);
+      if (event.code === "Space") {
+        event.preventDefault();
+        input.current.pulse = 0.65;
+      }
+      if (event.key === "r" || event.key === "R") reset();
+    };
+    addEventListener("pointermove", onPointer);
+    addEventListener("keydown", onKey);
+    let frame = 0;
+    const update = () => {
+      if (sourceRef.current === "demo") {
+        const time = performance.now() / 1000;
+        const x = autoDemoRef.current
+          ? Math.sin(time * 0.7) * 0.46
+          : input.current.x;
+        const y = autoDemoRef.current
+          ? Math.cos(time * 0.56) * 0.3
+          : input.current.y;
+        const raw = {
+          ...demoMotion(x, y, input.current.pulse),
+          sequence: ++sequence.current,
+        };
+        input.current.pulse *= 0.91;
+        const pitch = smooth(filtered.current.pitch, calculatePitch(raw));
+        const roll = smooth(filtered.current.roll, calculateRoll(raw));
+        const energy = Math.min(
+          1,
+          Math.abs(pitch - filtered.current.pitch) * 5 +
+            Math.abs(roll - filtered.current.roll) * 5 +
+            input.current.pulse,
+        );
+        filtered.current = { pitch, roll };
+        publish({
+          raw,
+          pitch,
+          roll,
+          normalizedPitch: deadZone(clamp(pitch / 0.72)),
+          normalizedRoll: deadZone(clamp(roll / 0.72)),
+          horizontal: deadZone(clamp(roll / 0.72)),
+          vertical: deadZone(clamp(pitch / 0.72)),
+          energy,
+          isStill: energy < 0.035,
+          sampleRateHz: 0,
+        });
+      }
+      frame = requestAnimationFrame(update);
+    };
+    frame = requestAnimationFrame(update);
+    return () => {
+      removeEventListener("pointermove", onPointer);
+      removeEventListener("keydown", onKey);
+      cancelAnimationFrame(frame);
+    };
+  }, [publish, reset]);
+  useEffect(() => {
+    const unload = () => {
+      void ouraSource.current?.disconnect();
+    };
+    addEventListener("beforeunload", unload);
+    return () => {
+      removeEventListener("beforeunload", unload);
+      if (calibrationTimer.current) clearTimeout(calibrationTimer.current);
+      if (rafPublish.current) cancelAnimationFrame(rafPublish.current);
+      void ouraSource.current?.disconnect();
+    };
+  }, []);
+  const value = useMemo(
+    () => ({
+      motion,
+      source,
+      status,
+      diagnostics,
+      autoDemo,
+      connectOura,
+      disconnectOura,
+      startStream: connectOura,
+      stopStream: disconnectOura,
+      useDemoMode,
+      switchToDemo: useDemoMode,
+      toggleAutoDemo,
+      reset,
+      calibrate,
+      isCalibrated: diagnostics.calibrated,
+      updateSettings,
+      resetMotionSettings,
+    }),
+    [
+      motion,
+      source,
+      status,
+      diagnostics,
+      autoDemo,
+      connectOura,
+      disconnectOura,
+      useDemoMode,
+      toggleAutoDemo,
+      reset,
+      calibrate,
+      updateSettings,
+      resetMotionSettings,
+    ],
+  );
+  return (
+    <MotionContext.Provider value={value}>{children}</MotionContext.Provider>
+  );
 }
-export const useMotion = () => { const context = useContext(MotionContext); if (!context) throw new Error('useMotion must be used within MotionProvider'); return context }
+export const useMotion = () => {
+  const context = useContext(MotionContext);
+  if (!context) throw new Error("useMotion must be used within MotionProvider");
+  return context;
+};

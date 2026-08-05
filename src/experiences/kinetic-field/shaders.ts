@@ -23,7 +23,7 @@ void main() {
   vAlpha = clamp(0.42 + aScale * 0.48 + uEnergy * 0.18 + uBurst * 0.2, 0.32, 1.0);
   vColor = aColor;
 }
-`
+`;
 
 export const particleFragmentShader = `
 uniform float uGlow;
@@ -43,4 +43,4 @@ void main() {
   vec3 color = vColor + vColor * halo * uGlow * 0.18;
   gl_FragColor = vec4(color, alpha);
 }
-`
+`;

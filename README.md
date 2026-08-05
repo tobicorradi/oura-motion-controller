@@ -9,12 +9,12 @@ It works in two ways:
 
 ## Desktop gallery
 
-| Home | Kinetic Field |
-| --- | --- |
+| Home                                                                                                  | Kinetic Field                                                                                             |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | <img src="docs/screenshots/home-desktop.png" alt="Oura Motion Controller home screen" width="100%" /> | <img src="docs/screenshots/kinetic-field-desktop.png" alt="Kinetic Field particle sphere" width="100%" /> |
 
-| Motion Waves |
-| --- |
+| Motion Waves                                                                                               |
+| ---------------------------------------------------------------------------------------------------------- |
 | <img src="docs/screenshots/motion-waves-desktop.png" alt="Motion Waves visual synthesizer" width="100%" /> |
 
 ## What you can explore
@@ -108,14 +108,14 @@ The sidebar shows the current connection state, an initial battery reading, axis
 
 ## Useful commands
 
-| Command | What it does |
-| --- | --- |
-| `pnpm dev` | Starts the site in Demo Mode. |
-| `pnpm dev:live` | Starts Vite and the local Oura bridge. |
-| `pnpm oura:scan` | Finds nearby Oura Rings. |
+| Command            | What it does                                              |
+| ------------------ | --------------------------------------------------------- |
+| `pnpm dev`         | Starts the site in Demo Mode.                             |
+| `pnpm dev:live`    | Starts Vite and the local Oura bridge.                    |
+| `pnpm oura:scan`   | Finds nearby Oura Rings.                                  |
 | `pnpm oura:verify` | Checks connection, authentication and accelerometer data. |
-| `pnpm oura:stop` | Stops the Vite server and Oura bridge. |
-| `pnpm build` | Runs TypeScript checks and creates a production build. |
+| `pnpm oura:stop`   | Stops the Vite server and Oura bridge.                    |
+| `pnpm build`       | Runs TypeScript checks and creates a production build.    |
 
 ## Troubleshooting
 

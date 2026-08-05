@@ -1,16 +1,128 @@
-import { useEffect, useRef } from 'react'
-import type { RefObject } from 'react'
-import type { SpatialInput } from './direction'
-import type { TrailPoint } from './useMotionVisualization'
+import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
+import type { SpatialInput } from "./direction";
+import type { TrailPoint } from "./useMotionVisualization";
 
-type Props = { fieldRef: RefObject<HTMLElement | null>; displayedInputRef: RefObject<SpatialInput>; trailRef: RefObject<TrailPoint[]>; showTrail: boolean; intensity: number; direction: string }
-export function MotionField({ fieldRef, displayedInputRef, trailRef, showTrail, intensity, direction }: Props) {
-  const dotRef = useRef<SVGCircleElement>(null); const vectorRef = useRef<SVGLineElement>(null); const trailPathRef = useRef<SVGPathElement>(null); const glowRef = useRef<SVGCircleElement>(null); const radius = 188
+type Props = {
+  fieldRef: RefObject<HTMLElement | null>;
+  displayedInputRef: RefObject<SpatialInput>;
+  trailRef: RefObject<TrailPoint[]>;
+  showTrail: boolean;
+  intensity: number;
+  direction: string;
+};
+export function MotionField({
+  fieldRef,
+  displayedInputRef,
+  trailRef,
+  showTrail,
+  intensity,
+  direction,
+}: Props) {
+  const dotRef = useRef<SVGCircleElement>(null);
+  const vectorRef = useRef<SVGLineElement>(null);
+  const trailPathRef = useRef<SVGPathElement>(null);
+  const glowRef = useRef<SVGCircleElement>(null);
+  const radius = 188;
   useEffect(() => {
-    let frame = 0
-    const render = () => { const input = displayedInputRef.current; const x = 250 + input.horizontal * radius; const y = 250 + input.vertical * radius; const magnitude = Math.min(1, Math.hypot(input.horizontal, input.vertical)); dotRef.current?.setAttribute('cx', String(x)); dotRef.current?.setAttribute('cy', String(y)); dotRef.current?.setAttribute('r', String(11 + magnitude * 8)); vectorRef.current?.setAttribute('x2', String(x)); vectorRef.current?.setAttribute('y2', String(y)); vectorRef.current?.setAttribute('opacity', String(magnitude * .9)); glowRef.current?.setAttribute('cx', String(x)); glowRef.current?.setAttribute('cy', String(y)); glowRef.current?.setAttribute('r', String(24 + magnitude * 17)); const points = trailRef.current; const path = points.map((point, index) => `${index ? 'L' : 'M'} ${250 + point.horizontal * radius} ${250 + point.vertical * radius}`).join(' '); trailPathRef.current?.setAttribute('d', path); frame = requestAnimationFrame(render) }
-    frame = requestAnimationFrame(render); return () => cancelAnimationFrame(frame)
-  }, [displayedInputRef, trailRef])
-  const active = direction.replace('Moving ', '').toLowerCase()
-  return <section ref={fieldRef} className="motion-field" aria-label="Directional movement visualizer"><svg viewBox="0 0 500 500" role="img" aria-label="A horizontal and vertical movement axis with a live position indicator."><defs><radialGradient id="motionGlow"><stop stopColor="#e0a063" stopOpacity=".22" /><stop offset="1" stopColor="#e0a063" stopOpacity="0" /></radialGradient></defs><circle cx="250" cy="250" r="238" className="field-boundary" /><circle cx="250" cy="250" r="30" className="neutral-zone" /><circle ref={glowRef} cx="250" cy="250" r="24" fill="url(#motionGlow)" /><line x1="42" y1="250" x2="458" y2="250" className="axis" /><line x1="250" y1="42" x2="250" y2="458" className="axis" /><path ref={trailPathRef} className={`motion-trail ${showTrail ? '' : 'hidden'}`} /><line ref={vectorRef} x1="250" y1="250" x2="250" y2="250" className="motion-vector" /><circle cx="250" cy="250" r="4" className="center-dot" /><circle ref={dotRef} cx="250" cy="250" r="11" className="motion-dot" /></svg><span className={`field-label field-up ${active.includes('up') ? 'active' : ''}`}>Up</span><span className={`field-label field-down ${active.includes('down') ? 'active' : ''}`}>Down</span><span className={`field-label field-left ${active.includes('left') ? 'active' : ''}`}>Left</span><span className={`field-label field-right ${active.includes('right') ? 'active' : ''}`}>Right</span><span className={`neutral-label ${intensity === 0 ? 'active' : ''}`}>Neutral zone</span></section>
+    let frame = 0;
+    const render = () => {
+      const input = displayedInputRef.current;
+      const x = 250 + input.horizontal * radius;
+      const y = 250 + input.vertical * radius;
+      const magnitude = Math.min(
+        1,
+        Math.hypot(input.horizontal, input.vertical),
+      );
+      dotRef.current?.setAttribute("cx", String(x));
+      dotRef.current?.setAttribute("cy", String(y));
+      dotRef.current?.setAttribute("r", String(11 + magnitude * 8));
+      vectorRef.current?.setAttribute("x2", String(x));
+      vectorRef.current?.setAttribute("y2", String(y));
+      vectorRef.current?.setAttribute("opacity", String(magnitude * 0.9));
+      glowRef.current?.setAttribute("cx", String(x));
+      glowRef.current?.setAttribute("cy", String(y));
+      glowRef.current?.setAttribute("r", String(24 + magnitude * 17));
+      const points = trailRef.current;
+      const path = points
+        .map(
+          (point, index) =>
+            `${index ? "L" : "M"} ${250 + point.horizontal * radius} ${250 + point.vertical * radius}`,
+        )
+        .join(" ");
+      trailPathRef.current?.setAttribute("d", path);
+      frame = requestAnimationFrame(render);
+    };
+    frame = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(frame);
+  }, [displayedInputRef, trailRef]);
+  const active = direction.replace("Moving ", "").toLowerCase();
+  return (
+    <section
+      ref={fieldRef}
+      className="motion-field"
+      aria-label="Directional movement visualizer"
+    >
+      <svg
+        viewBox="0 0 500 500"
+        role="img"
+        aria-label="A horizontal and vertical movement axis with a live position indicator."
+      >
+        <defs>
+          <radialGradient id="motionGlow">
+            <stop stopColor="#e0a063" stopOpacity=".22" />
+            <stop offset="1" stopColor="#e0a063" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="250" cy="250" r="238" className="field-boundary" />
+        <circle cx="250" cy="250" r="30" className="neutral-zone" />
+        <circle
+          ref={glowRef}
+          cx="250"
+          cy="250"
+          r="24"
+          fill="url(#motionGlow)"
+        />
+        <line x1="42" y1="250" x2="458" y2="250" className="axis" />
+        <line x1="250" y1="42" x2="250" y2="458" className="axis" />
+        <path
+          ref={trailPathRef}
+          className={`motion-trail ${showTrail ? "" : "hidden"}`}
+        />
+        <line
+          ref={vectorRef}
+          x1="250"
+          y1="250"
+          x2="250"
+          y2="250"
+          className="motion-vector"
+        />
+        <circle cx="250" cy="250" r="4" className="center-dot" />
+        <circle ref={dotRef} cx="250" cy="250" r="11" className="motion-dot" />
+      </svg>
+      <span
+        className={`field-label field-up ${active.includes("up") ? "active" : ""}`}
+      >
+        Up
+      </span>
+      <span
+        className={`field-label field-down ${active.includes("down") ? "active" : ""}`}
+      >
+        Down
+      </span>
+      <span
+        className={`field-label field-left ${active.includes("left") ? "active" : ""}`}
+      >
+        Left
+      </span>
+      <span
+        className={`field-label field-right ${active.includes("right") ? "active" : ""}`}
+      >
+        Right
+      </span>
+      <span className={`neutral-label ${intensity === 0 ? "active" : ""}`}>
+        Neutral zone
+      </span>
+    </section>
+  );
 }

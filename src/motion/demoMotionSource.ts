@@ -3,4 +3,4 @@ export const demoMotion = (x: number, y: number, pulse: number) => ({
   y: x * 0.72 + Math.cos(performance.now() / 230) * pulse,
   z: 1,
   timestamp: performance.now(),
-})
+});
