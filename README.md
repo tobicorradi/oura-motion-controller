@@ -7,6 +7,16 @@ It works in two ways:
 - **Demo Mode** — mouse, keyboard and auto-demo. No ring required.
 - **Live Oura Mode** — your Oura Ring streams motion to the app through a local Bluetooth bridge on your Mac.
 
+## Desktop gallery
+
+| Home | Kinetic Field |
+| --- | --- |
+| <img src="docs/screenshots/home-desktop.png" alt="Oura Motion Controller home screen" width="100%" /> | <img src="docs/screenshots/kinetic-field-desktop.png" alt="Kinetic Field particle sphere" width="100%" /> |
+
+| Motion Waves |
+| --- |
+| <img src="docs/screenshots/motion-waves-desktop.png" alt="Motion Waves visual synthesizer" width="100%" /> |
+
 ## What you can explore
 
 - **Motion Input** — visualizes tilt, direction and intensity.
