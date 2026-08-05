@@ -1,53 +1,131 @@
 # Oura Motion Controller
 
-An internal React Roundtable experiment, presented as **Oura Motion Controller**: motion input for web experiences. Demo Mode always works with mouse and keyboard. Live Oura Mode uses a **local** `open_oura` bridge; the browser never handles Bluetooth pairing or the ring authentication key.
+A motion-first web experiment: use an Oura Ring as a wireless controller for visual, spatial and 3D experiences.
 
-## Live-motion architecture
+It works in two ways:
 
-```text
-Oura Ring → BLE → open_oura → local SSE → Vite /oura proxy → MotionProvider
-                                                               ├ Motion Input Visualizer
-                                                               ├ Spatial Gallery
-                                                               ├ Motion Synthesizer
-                                                               └ 3D Product Viewer
-```
+- **Demo Mode** — mouse, keyboard and auto-demo. No ring required.
+- **Live Oura Mode** — your Oura Ring streams motion to the app through a local Bluetooth bridge on your Mac.
 
-The bridge is `Th0rgal/open_oura`. This implementation targets its current `main` behavior: `oura viz --port 8088 --minutes 15`, loopback-only SSE `/stream`, and protected `/start` / `/stop` controls. The inspected upstream revision is `c5106bd5674dd98f07954b96dff9e16c8fe26f06` (2026-07-24); `pnpm oura:setup` prints the local clone revision as well. Verify again after upstream updates. [open_oura](https://github.com/Th0rgal/open_oura) is attributed under its upstream license.
+## What you can explore
 
-## Quick start
+- **Motion Input** — visualizes tilt, direction and intensity.
+- **Kinetic Field** — moves a responsive particle sphere.
+- **Balance Game** — tilts a 3D maze to guide a ball.
+- **Motion Synth** — turns movement into animated waveforms.
+- **3D Furniture Viewer** — rotates and tilts a lounge chair.
+- **Spatial Environment** — controls a temperature wheel.
+
+## Start in Demo Mode
+
+This is the fastest way to try the project.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Use **Demo Mode** when the bridge or ring is unavailable. Mouse and keyboard remain the fallback for every presentation.
+Open [http://localhost:5173](http://localhost:5173). Move the pointer, use the arrow keys or WASD, and select any experience from the sidebar.
 
-## Live Oura setup — macOS
+## How Live Oura Mode works
 
-1. Install Rust/Cargo, then grant Bluetooth access to the terminal application in macOS Privacy & Security.
-2. Use a charged, dedicated backup ring. Manually factory-reset it with Oura's supported process; this repository never automates resets.
-3. Copy `.env.oura.example` to `.env.oura` and set absolute local paths. Keep the key file outside this repository. With multiple rings, keep the dedicated backup ring closest to the Mac: open_oura selects the strongest matching advertiser. `OURA_RING_ADDRESS` is optional only when that identifier stays stable; CoreBluetooth identifiers can rotate on macOS. Use `OURA_SCAN_TIMEOUT=45` to give the ring time to advertise. Never use `VITE_OURA_AUTH_KEY` or any `VITE_*` secret.
-4. Build the bridge: `pnpm oura:setup`.
-5. Find the ring: `pnpm oura:scan`.
-6. Pair only after the manual reset: `OURA_CONFIRM_PAIR=1 pnpm oura:pair`. The command can take 25–60 seconds while it scans and connects; keep the ring nearby and still. For transport logs, prefix it with `OURA_LOG_LEVEL=debug`.
-7. Verify info and a 15-second accelerometer sample: `pnpm oura:verify`.
-8. Start both processes: `pnpm dev:live`, then select **Connect Oura** in the app and hold the hand still during calibration.
+```text
+Oura Ring
+   ↓ Bluetooth Low Energy
+open_oura (local bridge on your Mac)
+   ↓ local SSE motion stream
+Vite local proxy
+   ↓
+React MotionProvider
+   ↓
+Every interactive experience
+```
 
-The actual upstream commands are `oura scan`, `oura --name "Oura" --key-file /secure/key.hex pair`, `info`, `accel --seconds 15`, and `viz --port 8088 --minutes 15`. If the official Oura app or another device holds the ring connection, close it or temporarily disable the phone Bluetooth before testing.
+Bluetooth and the Oura authentication key stay on your computer. The browser receives only local motion samples; it never pairs with the ring or stores its key.
 
-An already-onboarded ring needs its existing 16-byte app-auth key from its app database. This project does not extract that key or provide an unreliable workaround; a factory-reset backup ring paired with `open_oura` is the supported demo path.
+## Connect an Oura Ring on macOS
 
-## Safety and limitations
+### 1. Prerequisites
 
-`open_oura` starts ACM streaming only after an explicit action and applies a ring-side duration backstop. Disconnect in the UI or Ctrl-C the bridge when finished. The Vite proxy only exists for local development and preserves the bridge Host, Origin, and `x-oura-viz` protections.
+- Install [Node.js](https://nodejs.org/) and pnpm.
+- Install Rust/Cargo for the local `open_oura` bridge.
+- Allow Bluetooth access for your terminal in **System Settings → Privacy & Security → Bluetooth**.
+- Keep the Oura app closed while testing. If it is holding the connection, temporarily turn Bluetooth off on your phone.
 
-The live Oura channel provides accelerometer data. It supports gravity-based tilt and movement intensity, but it does not provide reliable live yaw, exact hand position, or finger tracking.
+### 2. Create local configuration
 
-Live calibration averages normalized gravity samples for three seconds, builds an orientation basis, then derives horizontal and vertical tilt. The Live details panel supports axis swap/inversion, dead zone, full-scale angle, smoothing, and counts-per-g adjustment. Settings reset when the page reloads and no authentication material enters browser storage.
+```bash
+cp .env.oura.example .env.oura
+```
 
-## Roundtable runbook
+Edit `.env.oura`:
 
-Before: charge the backup ring, close the official app, run `oura:verify`, start `dev:live`, connect, calibrate, and confirm direction in Motion Input Visualizer. During: explain Ring → local bridge → React, then show Spatial Gallery, Motion Synthesizer, and Product Viewer. Disconnect at the end. If anything fails, choose Demo Mode and continue; do not debug Bluetooth during the presentation.
+- Set `OURA_KEY_FILE` to an absolute path **outside this repository**.
+- Leave `OURA_RING_ADDRESS=` empty on macOS. The Bluetooth identifier may rotate, so discovery by name is more reliable.
+- Set `OURA_RING_NAME=Oura Ring 4` (or the advertised name of your ring).
+- Set `OURA_STREAM_MINUTES` to the maximum presentation time you need.
 
-Hardware was not available in this coding environment. Complete the numbered setup steps above, confirm the bridge receives samples, calibrate direction, test each experience, then verify Disconnect and browser-close teardown.
+Never commit `.env.oura`, the auth key, device captures or serial information.
+
+### 3. Build and connect
+
+```bash
+pnpm oura:setup
+pnpm oura:scan
+```
+
+The scan should list the ring nearby. If it does, pair it only when you are using a dedicated, manually factory-reset ring:
+
+```bash
+OURA_CONFIRM_PAIR=1 pnpm oura:pair
+```
+
+Then check that the ring can provide authenticated information and motion:
+
+```bash
+pnpm oura:verify
+```
+
+Finally start the web app and local bridge together:
+
+```bash
+pnpm dev:live
+```
+
+Wait until the terminal says `Ready — open http://127.0.0.1:8088`, open [http://localhost:5173](http://localhost:5173), and select **Connect Oura**. Hold the ring still for the neutral-position calibration.
+
+The sidebar shows the current connection state, an initial battery reading, axis inversion controls, and **Reset position** for recalibration.
+
+## Useful commands
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Starts the site in Demo Mode. |
+| `pnpm dev:live` | Starts Vite and the local Oura bridge. |
+| `pnpm oura:scan` | Finds nearby Oura Rings. |
+| `pnpm oura:verify` | Checks connection, authentication and accelerometer data. |
+| `pnpm oura:stop` | Stops the Vite server and Oura bridge. |
+| `pnpm build` | Runs TypeScript checks and creates a production build. |
+
+## Troubleshooting
+
+**`no matching Oura ring found`**
+
+1. Run `pnpm oura:stop`.
+2. Close the Oura app / turn off phone Bluetooth temporarily.
+3. Keep the ring close to the Mac and run `pnpm oura:scan`.
+4. Do not pair again if `pnpm oura:verify` had already worked before.
+
+**`ECONNREFUSED 127.0.0.1:8088` immediately after `pnpm dev:live`**
+
+Vite usually starts before the bridge. Wait for the `Ready` message; then refresh the browser and connect the ring. If `Ready` never appears, stop everything with `pnpm oura:stop` and start again.
+
+**The movement feels reversed**
+
+Use **Invert X** or **Invert Y** in the sidebar. Use **Reset position** while holding your hand in the comfortable neutral position.
+
+## Notes and limitations
+
+Live Oura Mode uses gravity-based tilt and motion intensity. It does not provide exact hand position, reliable yaw, finger tracking or Oura health scores. Every experience remains usable in Demo Mode if Bluetooth is unavailable.
+
+This project uses [open_oura](https://github.com/Th0rgal/open_oura), a local open-source Oura BLE client. Follow its license and safety notes. Pairing requires an app authentication key; this project does not extract keys or automate factory resets.
