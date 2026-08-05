@@ -7,6 +7,7 @@ const navigation = [
   { to: '/', label: 'Home', icon: '⌂' },
   { to: '/motion-visualizer', label: 'Motion Input', icon: '⌁' },
   { to: '/kinetic-field', label: 'Kinetic Field', icon: '✦' },
+  { to: '/balance-game', label: 'Balance Game', icon: '◉' },
   { to: '/motion-synthesizer', label: 'Motion Synth', icon: '≈' },
   { to: '/product-viewer', label: '3D Viewer', icon: '◇' },
   { to: '/spatial-environment', label: 'Spatial Environment', icon: '▦' },

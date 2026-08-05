@@ -4,7 +4,7 @@ import { applyWheelDeadZone, clampWheelPosition, nextCategory, releaseCategorySw
 
 type Input = { horizontal: number; vertical: number; isStill: boolean }
 
-export function useEnvironmentWheel(containerRef: RefObject<HTMLElement | null>, input: Input, source: string) {
+export function useEnvironmentWheel(containerRef: RefObject<HTMLElement | null>, input: Input, source: string, temperatureOnly = false) {
   const [activeCategory, setActiveCategory] = useState<EnvironmentCategory>('temperature')
   const [selection, setSelection] = useState<EnvironmentSelection>(defaultSelection)
   const [wheelPosition, setWheelPosition] = useState(defaultSelection.temperature)
@@ -34,13 +34,15 @@ export function useEnvironmentWheel(containerRef: RefObject<HTMLElement | null>,
       const activeKeys = keys.current
       const keyInput = { horizontal: (activeKeys.has('arrowright') || activeKeys.has('d') ? 1 : 0) - (activeKeys.has('arrowleft') || activeKeys.has('a') ? 1 : 0), vertical: (activeKeys.has('arrowdown') || activeKeys.has('s') ? 1 : 0) - (activeKeys.has('arrowup') || activeKeys.has('w') ? 1 : 0) }
       const keyboardActive = keyInput.horizontal !== 0 || keyInput.vertical !== 0
-      const demoCategory = categories[Math.floor(now / 5200) % categories.length]
+      const demoCategory = temperatureOnly ? 'temperature' : categories[Math.floor(now / 5200) % categories.length]
       const demoInput = { horizontal: 0, vertical: Math.sin(now / 1900) * .38, isStill: false }
       const desired = source === 'oura' ? inputRef.current : autoRef.current ? demoInput : keyboardActive ? { ...keyInput, isStill: false } : { ...pointer.current, isStill: Math.abs(pointer.current.horizontal) < .05 && Math.abs(pointer.current.vertical) < .05 }
-      if (autoRef.current && demoCategory !== activeRef.current) setCategory(demoCategory)
+      if (!temperatureOnly && autoRef.current && demoCategory !== activeRef.current) setCategory(demoCategory)
       const horizontal = Number.isFinite(desired.horizontal) ? desired.horizontal : 0
-      if (shouldSwitchCategory(horizontal, armed.current, now, lastCategoryAt.current)) { armed.current = false; lastCategoryAt.current = now; setCategory(nextCategory(activeRef.current, horizontal > 0 ? 1 : -1)) }
-      if (releaseCategorySwitch(horizontal)) armed.current = true
+      if (!temperatureOnly) {
+        if (shouldSwitchCategory(horizontal, armed.current, now, lastCategoryAt.current)) { armed.current = false; lastCategoryAt.current = now; setCategory(nextCategory(activeRef.current, horizontal > 0 ? 1 : -1)) }
+        if (releaseCategorySwitch(horizontal)) armed.current = true
+      }
       const vertical = applyWheelDeadZone(desired.vertical)
       const count = environmentValues[activeRef.current].length
       const targetVelocity = vertical * 5.4
@@ -54,6 +56,6 @@ export function useEnvironmentWheel(containerRef: RefObject<HTMLElement | null>,
       frame = requestAnimationFrame(animate)
     }
     frame = requestAnimationFrame(animate); return () => cancelAnimationFrame(frame)
-  }, [setCategory, source])
+  }, [setCategory, source, temperatureOnly])
   return { activeCategory, selection, wheelPosition, wheelPositionRef: position, autoDemo, setCategory, reset, toggleAutoDemo: () => setAutoDemo(value => !value), disableAuto }
 }

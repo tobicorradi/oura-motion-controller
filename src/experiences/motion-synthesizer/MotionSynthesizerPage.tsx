@@ -6,22 +6,44 @@ import { useMotion } from '../../motion/MotionProvider'
 import { MotionVisualizer } from './MotionVisualizer'
 import { type SynthPreset } from './music'
 import { presets } from './presets'
-import { useMotionSynth } from './useMotionSynth'
 import './synth.css'
 
-const formatFilter = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(1)} kHz` : `${Math.round(value)} Hz`
+const signed = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
+
 export function MotionSynthesizerPage() {
-  const { motion, source, calibrate } = useMotion(); const synth = useMotionSynth(motion); const [pulseAt, setPulseAt] = useState(0)
-  const triggerPulse = () => { synth.triggerPulse(); setPulseAt(performance.now()) }
+  const { motion, source, calibrate } = useMotion()
+  const [preset, setPreset] = useState<SynthPreset>('ambient')
+  const [pulseAt, setPulseAt] = useState(0)
+  const triggerPulse = () => setPulseAt(performance.now())
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.code === 'Space') { event.preventDefault(); triggerPulse() }
-      if (event.key === '1') synth.setPreset('ambient')
-      if (event.key === '2') synth.setPreset('pulse')
-      if (event.key === '3') synth.setPreset('cosmic')
-      if (event.key.toLowerCase() === 'm') void (synth.enabled ? synth.disable() : synth.enable())
+      if (event.key === '1') setPreset('ambient')
+      if (event.key === '2') setPreset('pulse')
+      if (event.key === '3') setPreset('cosmic')
     }
-    addEventListener('keydown', onKey); return () => removeEventListener('keydown', onKey)
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
   })
-  return <AppShell accent="cyan"><main className="synth-page"><header className="experience-header"><Link to="/" className="back">← Home</Link><ConnectionStatus /></header><section className="synth-heading"><div><p className="eyebrow">Experience 03 / Motion instrument</p><h1>Motion<br /><i>Synth</i></h1><p>Move your hand to shape a calm, constrained soundscape.</p></div><div className="audio-control"><button className="audio-button" onClick={() => void (synth.enabled ? synth.disable() : synth.enable())} aria-pressed={synth.enabled}>{synth.enabled ? 'Disable Audio' : 'Enable Audio'} <span>{synth.enabled ? '●' : '→'}</span></button><small>{synth.enabled ? 'Audio active — use a moderate device volume.' : 'Browsers require an interaction before sound can begin.'}</small></div></section><section className="synth-stage"><MotionVisualizer analyser={synth.analyser} motion={motion} preset={synth.preset} pulse={pulseAt} /><div className="synth-orbit-label"><span>{synth.metrics.note.name}</span><small>current note</small></div><div className="preset-selector" role="group" aria-label="Sound preset">{(Object.keys(presets) as SynthPreset[]).map(key => <button key={key} onClick={() => synth.setPreset(key)} className={synth.preset === key ? 'active' : ''} aria-pressed={synth.preset === key}>{presets[key].label}<kbd>{key === 'ambient' ? '1' : key === 'pulse' ? '2' : '3'}</kbd></button>)}</div><p className="visual-description">An abstract ring field responds to your motion and selected sound character.</p></section><section className="synth-hud" aria-label="Motion and sound values"><div><span>Note</span><strong>{synth.metrics.note.name}</strong></div><div><span>Filter</span><strong>{formatFilter(synth.metrics.filter)}</strong></div><div><span>Energy</span><strong>{Math.round(synth.metrics.energy * 100)}%</strong></div><div><span>Source</span><strong>{source}</strong></div></section>{synth.error && <p className="synth-error" role="status">{synth.error}</p>}<footer className="synth-footer"><p>Move horizontally to change notes · Move vertically to shape the filter · <kbd>Space</kbd> to trigger a pulse</p><div><button onClick={calibrate}>Calibrate</button><span><kbd>R</kbd> reset · <kbd>M</kbd> audio</span></div></footer></main></AppShell>
+
+  const state = motion.energy > .42 ? 'Surging' : motion.energy > .08 ? 'Flowing' : 'Still'
+
+  return <AppShell accent="cyan"><main className="synth-page wave-page">
+    <header className="experience-header"><Link to="/" className="back">← Home</Link><ConnectionStatus /></header>
+    <section className="synth-heading">
+      <div><p className="eyebrow">Experience 03 / Motion waves</p><h1>Motion<br /><i>Waves</i></h1><p>Shape a visual current with the smallest movement. A silent study in gesture, energy and flow.</p></div>
+      <div className="wave-status"><span><i />Visual mode</span><strong>Silent field</strong><small>Move the ring to bend the field.</small></div>
+    </section>
+    <section className="synth-stage wave-stage">
+      <MotionVisualizer motion={motion} preset={preset} pulse={pulseAt} />
+      <div className="wave-readout"><span>{state}</span><small>field state</small></div>
+      <div className="preset-selector" role="group" aria-label="Visual wave preset">{(Object.keys(presets) as SynthPreset[]).map(key => <button key={key} onClick={() => setPreset(key)} className={preset === key ? 'active' : ''} aria-pressed={preset === key}>{presets[key].label}<kbd>{key === 'ambient' ? '1' : key === 'pulse' ? '2' : '3'}</kbd></button>)}</div>
+      <p className="visual-description">Horizontal movement changes the current. Vertical movement bends the wave field.</p>
+    </section>
+    <section className="synth-hud" aria-label="Motion wave values">
+      <div><span>Field state</span><strong>{state}</strong></div><div><span>Horizontal</span><strong>{signed(motion.normalizedRoll)}</strong></div><div><span>Vertical</span><strong>{signed(motion.normalizedPitch)}</strong></div><div><span>Energy</span><strong>{Math.round(motion.energy * 100)}%</strong></div><div><span>Source</span><strong>{source}</strong></div>
+    </section>
+    <footer className="synth-footer"><p>Move left / right to shift the current · Move up / down to bend the field · <kbd>Space</kbd> to send a visual pulse</p><div><button onClick={calibrate}>Calibrate</button><span><kbd>R</kbd> reset</span></div></footer>
+  </main></AppShell>
 }

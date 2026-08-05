@@ -1,32 +1,100 @@
 import { useEffect, useRef } from 'react'
 import type { ProcessedMotion } from '../../motion/types'
 import type { SynthPreset } from './music'
-import { presets } from './presets'
 
-type Props = { analyser: AnalyserNode | null; motion: ProcessedMotion; preset: SynthPreset; pulse: number }
-export function MotionVisualizer({ analyser, motion, preset, pulse }: Props) {
-  const canvas = useRef<HTMLCanvasElement>(null); const motionRef = useRef(motion); const propsRef = useRef({ analyser, preset, pulse })
-  motionRef.current = motion; propsRef.current = { analyser, preset, pulse }
+type Props = { motion: ProcessedMotion; preset: SynthPreset; pulse: number }
+
+const palettes = {
+  ambient: { top: '#20d7e9', middle: '#4f8dff', bottom: '#9c57ff', glow: '#159fe8' },
+  pulse: { top: '#32d7ff', middle: '#7c6cff', bottom: '#f454cf', glow: '#9055ff' },
+  cosmic: { top: '#6bb4ff', middle: '#8062fa', bottom: '#ff4ea9', glow: '#d23de0' },
+} as const
+
+function hexWithAlpha(hex: string, alpha: number) {
+  return `${hex}${Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0')}`
+}
+
+export function MotionVisualizer({ motion, preset, pulse }: Props) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const motionRef = useRef(motion)
+  const propsRef = useRef({ preset, pulse })
+  motionRef.current = motion
+  propsRef.current = { preset, pulse }
+
   useEffect(() => {
-    const element = canvas.current; if (!element) return
-    const context = element.getContext('2d'); if (!context) return
+    const element = canvas.current
+    if (!element) return
+    const context = element.getContext('2d')
+    if (!context) return
     let frame = 0
-    const resize = () => { const rect = element.getBoundingClientRect(); const ratio = Math.min(devicePixelRatio, 2); element.width = rect.width * ratio; element.height = rect.height * ratio; context.setTransform(ratio, 0, 0, ratio, 0, 0) }
-    resize(); const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(element)
-    const data = new Uint8Array(64); const render = (time: number) => {
-      const { analyser: activeAnalyser, preset: activePreset, pulse: activePulse } = propsRef.current; const currentMotion = motionRef.current; const width = element.clientWidth; const height = element.clientHeight; const cx = width / 2; const cy = height / 2
-      if (activeAnalyser) activeAnalyser.getByteFrequencyData(data); else data.fill(0)
-      const audio = data.reduce((sum, value) => sum + value, 0) / data.length / 255; const definition = presets[activePreset]; const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; const pulseEnergy = Math.max(0, 1 - (time - activePulse) / 650)
+    const resize = () => {
+      const rect = element.getBoundingClientRect()
+      const ratio = Math.min(devicePixelRatio, 2)
+      element.width = Math.max(1, Math.round(rect.width * ratio))
+      element.height = Math.max(1, Math.round(rect.height * ratio))
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+    }
+    resize()
+    const resizeObserver = new ResizeObserver(resize)
+    resizeObserver.observe(element)
+
+    const render = (time: number) => {
+      const { preset: activePreset, pulse: activePulse } = propsRef.current
+      const currentMotion = motionRef.current
+      const { top, middle, bottom, glow } = palettes[activePreset]
+      const width = element.clientWidth
+      const height = element.clientHeight
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+      const pulseEnergy = Math.max(0, 1 - (time - activePulse) / 900)
+      const roll = currentMotion.normalizedRoll
+      const pitch = currentMotion.normalizedPitch
+      const energy = currentMotion.energy
+      const phase = reduced ? 0 : time / (activePreset === 'pulse' ? 580 : 1300)
+
       context.clearRect(0, 0, width, height)
-      const glow = context.createRadialGradient(cx, cy, 0, cx, cy, Math.min(width, height) * .56); glow.addColorStop(0, `${definition.color}28`); glow.addColorStop(1, 'transparent'); context.fillStyle = glow; context.fillRect(0, 0, width, height)
-      const base = Math.min(width, height) * (.155 + currentMotion.energy * .025 + audio * .035 + pulseEnergy * .028)
-      context.save(); context.translate(cx, cy); context.rotate(currentMotion.normalizedRoll * .58); context.scale(1, 1 + -currentMotion.normalizedPitch * .22)
-      for (let layer = 0; layer < 4; layer++) { context.beginPath(); for (let step = 0; step <= 120; step++) { const angle = step / 120 * Math.PI * 2; const spectrum = data[step % data.length] / 255; const wave = Math.sin(angle * (activePreset === 'pulse' ? 6 : 3) + time / (activePreset === 'pulse' ? 180 : 650)) * (10 + audio * 14); const radius = base + layer * 17 + wave + spectrum * 28 + (reduced ? 0 : Math.sin(time / 650 + step) * 2); const x = Math.cos(angle) * radius; const y = Math.sin(angle) * radius; if (step) context.lineTo(x, y); else context.moveTo(x, y) } context.closePath(); context.strokeStyle = layer === 0 ? `${definition.color}e8` : `${definition.color}${Math.round(55 - layer * 8).toString(16)}`; context.lineWidth = layer === 0 ? 1.5 : 1; context.stroke() }
-      context.beginPath(); context.arc(0, 0, base * .62, 0, Math.PI * 2); context.fillStyle = `${definition.color}1c`; context.fill(); context.restore()
-      if (activePreset === 'cosmic') for (let i = 0; i < 34; i++) { const angle = i * 2.4 + time / 2800; const distance = base + 80 + (i % 6) * 19; context.fillStyle = `${definition.color}${(45 + (i % 3) * 25).toString(16)}`; context.fillRect(cx + Math.cos(angle) * distance, cy + Math.sin(angle * 1.3) * distance, 2, 2) }
+      const atmosphere = context.createRadialGradient(width * .74, height * .2, 0, width * .5, height * .55, width * .75)
+      atmosphere.addColorStop(0, hexWithAlpha(top, .28 + energy * .15))
+      atmosphere.addColorStop(.44, hexWithAlpha(middle, .15))
+      atmosphere.addColorStop(1, 'transparent')
+      context.fillStyle = atmosphere
+      context.fillRect(0, 0, width, height)
+
+      const lines = 18
+      const startY = height * .17
+      const gap = height * .043
+      const focusX = width * (.52 + roll * .22)
+      const spread = width * (.13 + energy * .08 + pulseEnergy * .09)
+      const movement = Math.min(1, .16 + Math.abs(roll) * .62 + Math.abs(pitch) * .5 + energy * 1.15 + pulseEnergy * 1.2)
+      const peakDirection = pitch || (roll >= 0 ? 1 : -1)
+      for (let line = 0; line < lines; line++) {
+        const linePosition = line / (lines - 1)
+        const color = linePosition < .34 ? top : linePosition < .68 ? middle : bottom
+        const baseline = startY + gap * line
+        const drift = (line - lines / 2) * pitch * 2.8
+        context.beginPath()
+        for (let step = 0; step <= 160; step++) {
+          const x = step / 160 * width
+          const normalizedDistance = (x - focusX) / spread
+          const crest = Math.exp(-normalizedDistance * normalizedDistance) * peakDirection * (34 + movement * 190)
+          const shoulderDistance = (x - (focusX - width * .18)) / (spread * 1.7)
+          const shoulder = Math.exp(-shoulderDistance * shoulderDistance) * -peakDirection * (12 + movement * 62)
+          const ripple = Math.sin(x / width * Math.PI * (1.7 + Math.abs(roll) * 2.5) + phase + line * .22) * (5 + movement * 22)
+          const lineLift = .56 + linePosition * .52
+          const y = baseline + drift + crest * lineLift + shoulder * (1 - linePosition * .3) + ripple
+          if (step) context.lineTo(x, y); else context.moveTo(x, y)
+        }
+        context.strokeStyle = hexWithAlpha(color, .52 + linePosition * .18)
+        context.lineWidth = line % 4 === 0 ? 1.7 : 1.05
+        context.shadowColor = hexWithAlpha(glow, .55)
+        context.shadowBlur = line % 4 === 0 ? 14 : 5
+        context.stroke()
+      }
+      context.shadowBlur = 0
       frame = requestAnimationFrame(render)
-    }; frame = requestAnimationFrame(render)
-    return () => { cancelAnimationFrame(frame); resizeObserver?.disconnect() }
+    }
+    frame = requestAnimationFrame(render)
+    return () => { cancelAnimationFrame(frame); resizeObserver.disconnect() }
   }, [])
-  return <canvas ref={canvas} className="synth-canvas" aria-label="An abstract ring visualizer reacting to movement, selected sound, and audio intensity." role="img" />
+
+  return <canvas ref={canvas} className="synth-canvas" aria-label="A luminous field of motion-reactive flowing waves." role="img" />
 }
